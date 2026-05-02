@@ -1,7 +1,11 @@
+import os
+import pickle
+
 import faiss
 import numpy as np
-import pickle
-import os
+
+from app.core.config import Config
+
 
 class VectorStore:
     def __init__(self, dim: int, index_path="faiss.index", meta_path="meta.pkl"):
@@ -9,7 +13,6 @@ class VectorStore:
         self.index_path = index_path
         self.meta_path = meta_path
 
-        # Load index and metadata if they exist
         if os.path.exists(index_path) and os.path.exists(meta_path):
             self.index = faiss.read_index(index_path)
             with open(meta_path, "rb") as f:
@@ -22,11 +25,7 @@ class VectorStore:
         vectors = np.array(embeddings).astype("float32")
         self.index.add(vectors)
         self.texts.extend(texts)
-
-        # Save index and metadata to disk
-        faiss.write_index(self.index, self.index_path)
-        with open(self.meta_path, "wb") as f:
-            pickle.dump(self.texts, f)
+        self._persist()
 
     def search(self, query_embedding, k=3):
         if self.index.ntotal == 0:
@@ -37,12 +36,17 @@ class VectorStore:
 
         results = []
         for idx in indices[0]:
-            if idx == -1:  # Skip invalid indices
+            if idx == -1:
                 continue
-            if 0 <= idx < len(self.texts):  # Ensure index is within bounds
+            if 0 <= idx < len(self.texts):
                 results.append(self.texts[idx])
 
         return results
 
-# Global instance of VectorStore
-vector_store = VectorStore(dim=1024)
+    def _persist(self):
+        faiss.write_index(self.index, self.index_path)
+        with open(self.meta_path, "wb") as f:
+            pickle.dump(self.texts, f)
+
+
+vector_store = VectorStore(dim=Config.EMBEDDING_DIMENSIONS)

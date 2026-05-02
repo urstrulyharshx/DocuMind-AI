@@ -7,3 +7,4 @@ requests==2.31.0
 streamlit==1.33.0
 pypdf==4.2.0
 faiss-cpu==1.13.2
+psycopg[binary]==3.2.3

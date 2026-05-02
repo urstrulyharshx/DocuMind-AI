@@ -26,6 +26,19 @@ class Config:
     S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "my-app-bucket")
     S3_REGION = os.getenv("S3_REGION", AWS_REGION)
 
+    # Database
+    POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
+    POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
+    POSTGRES_DB = os.getenv("POSTGRES_DB", "documind")
+    POSTGRES_USER = os.getenv("POSTGRES_USER", "documind")
+    POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "documind_password")
+    DATABASE_URL = os.getenv(
+        "DATABASE_URL",
+        (
+            f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}"
+            f"@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
+        ),
+    )
 
     # Base URL
     @staticmethod
