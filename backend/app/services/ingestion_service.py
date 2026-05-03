@@ -1,30 +1,51 @@
+import uuid
 from pypdf import PdfReader
 
 from app.clients.embedding_client import EmbeddingClient
 from app.clients.s3_client import S3Client
-from app.db.vector_store import vector_store
-from app.utils.helpers import add_embeddings_to_store, chunk_text
+from app.db.vector_store import pgvector_store
+from app.utils.helpers import chunk_text
 
 
 class IngestionService:
     def __init__(self, s3_client=None, embedding_client=None, store=None):
         self._s3_client = s3_client
         self._embedding_client = embedding_client
-        self.vector_store = store or vector_store
+        self.vector_store = store or pgvector_store
 
     def process_pdf(self, file_key: str):
         local_path = self._local_path_for(file_key)
 
+        # 1️Generate document_id (UUID)
+        document_id = str(uuid.uuid4())
+
+        # 2️ Download file
         self._get_s3_client().download_file(file_key, local_path)
+
+        # 3️Extract text
         text = self._extract_text(local_path)
+
+        # 4️ Chunk text
         chunks = chunk_text(text)
+
+        # 5️ Generate embeddings
         embeddings = self._embed_chunks(chunks)
 
-        add_embeddings_to_store(self.vector_store, embeddings, chunks)
+        print(f"[INGEST] Chunks: {len(chunks)}")
+        print(f"[INGEST] Embeddings: {len(embeddings)}")
+
+        # 6️Store in DB (documents + document_chunks)
+        self.vector_store.add(
+            embeddings=embeddings,
+            texts=chunks,
+            file_id=document_id   
+        )
 
         return {
             "chunks": len(chunks),
             "stored_in_vector_db": len(embeddings),
+            "document_id": document_id,   
+            "file_key": file_key
         }
 
     def _local_path_for(self, file_key: str):
@@ -50,18 +71,27 @@ class IngestionService:
                 if page_text:
                     text_parts.append(page_text)
             except Exception as e:
-                print(f"Error reading page {i}: {e}")
+                print(f"[ERROR] Page {i}: {e}")
 
-        full_text = "\n".join(text_parts)
-        return full_text.strip()
+        return "\n".join(text_parts).strip()
 
     def _embed_chunks(self, chunks):
         embeddings = []
+        client = self._get_embedding_client()
+
         for chunk in chunks:
-            embeddings.append(self._get_embedding_client().embed(chunk))
+            emb = client.embed(chunk)
+
+            
+            if not isinstance(emb, list):
+                raise Exception("Invalid embedding format")
+
+            embeddings.append(emb)
+
         return embeddings
 
 
+# Singleton instance
 ingestion_service = IngestionService()
 
 

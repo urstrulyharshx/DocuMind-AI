@@ -9,9 +9,9 @@ query_service = QueryService()
 
 class QueryRequest(BaseModel):
     question: str
+    document_id: str   
 
 
 @router.post("/")
 def query(req: QueryRequest):
-    return query_service.query(req.question)
-
+    return query_service.query(req.question, req.document_id)

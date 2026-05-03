@@ -1,7 +1,5 @@
-import json
-
+import time
 import requests
-
 from app.core.config import Config
 
 
@@ -13,23 +11,49 @@ class EmbeddingClient:
             "Authorization": f"Bearer {Config.AWS_BEDROCK_API_KEY}",
         }
 
-    def embed(self, text: str):
+    def embed(self, text: str) -> list[float]:
+        if not text or not text.strip():
+            raise ValueError("Input text for embedding is empty")
+
         body = {
             "inputText": text,
             "dimensions": Config.EMBEDDING_DIMENSIONS,
             "normalize": Config.EMBEDDING_NORMALIZE,
         }
 
-        response = requests.post(
-            self.url,
-            headers=self.headers,
-            data=json.dumps(body),
-            timeout=10,
-        )
+        retries = 3
+        last_error = None
 
-        if response.status_code != 200:
-            raise Exception(f"Embedding error: {response.text}")
+        for attempt in range(retries):
+            try:
+                print(f"[Embedding] Attempt {attempt + 1}")
 
-        result = response.json()
-        return result.get("embedding", [])
+                response = requests.post(
+                    self.url,
+                    headers=self.headers,
+                    json=body,
+                    timeout=30,   #  increased timeout
+                )
 
+                if response.status_code != 200:
+                    raise Exception(f"Bedrock error: {response.text}")
+
+                result = response.json()
+                embedding = result.get("embedding")
+
+                # validation
+                if not embedding or not isinstance(embedding, list):
+                    raise Exception("Invalid embedding response")
+
+                #ensure float values
+                embedding = [float(x) for x in embedding]
+
+                return embedding  # success → exit immediately
+
+            except Exception as e:
+                last_error = e
+                print(f"[Retry {attempt + 1}] Embedding failed: {e}")
+                time.sleep(2)
+
+        # nly reached if all retries fail
+        raise Exception(f"Embedding failed after {retries} attempts: {last_error}")

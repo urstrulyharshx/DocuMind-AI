@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.services.ingestion_service import ingestion_service
@@ -12,5 +12,8 @@ class IngestRequest(BaseModel):
 
 @router.post("/")
 def ingest(req: IngestRequest):
-    return ingestion_service.process_pdf(req.file_key)
+    try:
+        return ingestion_service.process_pdf(req.file_key)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 

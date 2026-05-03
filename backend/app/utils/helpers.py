@@ -18,10 +18,10 @@ def chunk_text(text: str, chunk_size=500, overlap=50):
     return chunks
 
 
-def add_embeddings_to_store(store, embeddings, texts):
-    store.add(embeddings, texts)
+# def add_embeddings_to_store(store, embeddings, texts):
+#     store.add(embeddings, texts)
 
 
-def search_similar_chunks(store, query_embedding, k=3):
-    return store.search(query_embedding, k=k)
+# def search_similar_chunks(store, query_embedding, k=3):
+#     return store.search(query_embedding, k=k)
 
