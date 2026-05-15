@@ -16,36 +16,27 @@ class IngestionService:
     def process_pdf(self, file_key: str):
         local_path = self._local_path_for(file_key)
 
-        # 1️Generate document_id (UUID)
         document_id = str(uuid.uuid4())
 
-        # 2️ Download file
         self._get_s3_client().download_file(file_key, local_path)
 
-        # 3️Extract text
-        text = self._extract_text(local_path)
+        chunk_records = self._build_chunk_records(local_path, file_key)
+        embeddings = self._embed_chunks([chunk["text"] for chunk in chunk_records])
 
-        # 4️ Chunk text
-        chunks = chunk_text(text)
-
-        # 5️ Generate embeddings
-        embeddings = self._embed_chunks(chunks)
-
-        print(f"[INGEST] Chunks: {len(chunks)}")
+        print(f"[INGEST] Chunks: {len(chunk_records)}")
         print(f"[INGEST] Embeddings: {len(embeddings)}")
 
-        # 6️Store in DB (documents + document_chunks)
         self.vector_store.add(
             embeddings=embeddings,
-            texts=chunks,
-            file_id=document_id   
+            texts=chunk_records,
+            file_id=document_id,
         )
 
         return {
-            "chunks": len(chunks),
+            "chunks": len(chunk_records),
             "stored_in_vector_db": len(embeddings),
-            "document_id": document_id,   
-            "file_key": file_key
+            "document_id": document_id,
+            "file_key": file_key,
         }
 
     def _local_path_for(self, file_key: str):
@@ -61,19 +52,51 @@ class IngestionService:
             self._embedding_client = EmbeddingClient()
         return self._embedding_client
 
-    def _extract_text(self, file_path: str):
+    def _extract_pages(self, file_path: str):
         reader = PdfReader(file_path)
-        text_parts = []
+        pages = []
 
-        for i, page in enumerate(reader.pages):
+        for page_index, page in enumerate(reader.pages, start=1):
             try:
                 page_text = page.extract_text()
                 if page_text:
-                    text_parts.append(page_text)
+                    pages.append(
+                        {
+                            "page_number": page_index,
+                            "text": page_text.strip(),
+                        }
+                    )
             except Exception as e:
-                print(f"[ERROR] Page {i}: {e}")
+                print(f"[ERROR] Page {page_index}: {e}")
 
-        return "\n".join(text_parts).strip()
+        return pages
+
+    def _build_chunk_records(self, file_path: str, file_key: str):
+        chunk_records = []
+        global_chunk_index = 0
+
+        for page in self._extract_pages(file_path):
+            page_chunks = chunk_text(page["text"])
+
+            for page_chunk_index, text in enumerate(page_chunks):
+                chunk_records.append(
+                    {
+                        "text": text,
+                        "page_number": page["page_number"],
+                        "chunk_index": global_chunk_index,
+                        "metadata": {
+                            "file_key": file_key,
+                            "file_name": self._file_name(file_key),
+                            "page_chunk_index": page_chunk_index,
+                        },
+                    }
+                )
+                global_chunk_index += 1
+
+        return chunk_records
+
+    def _file_name(self, file_key: str):
+        return file_key.rstrip("/").split("/")[-1] or file_key
 
     def _embed_chunks(self, chunks):
         embeddings = []
@@ -82,7 +105,6 @@ class IngestionService:
         for chunk in chunks:
             emb = client.embed(chunk)
 
-            
             if not isinstance(emb, list):
                 raise Exception("Invalid embedding format")
 
