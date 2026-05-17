@@ -74,32 +74,53 @@ class PGVectorStore:
                 )
 
     def search(self, query_embedding, file_id=None, k=5):
+        results = self.search_with_metadata(query_embedding, file_id=file_id, k=k)
+        return [result["chunk_text"] for result in results]
+
+    def search_with_metadata(self, query_embedding, file_id=None, k=5):
         embedding = self._format_embedding(query_embedding)
 
         with self._get_connection().cursor() as cur:
             if file_id:
                 cur.execute(
                     """
-                    SELECT chunk_text
+                    SELECT
+                        dc.chunk_text,
+                        dc.page_number,
+                        dc.chunk_index,
+                        dc.metadata,
+                        d.file_name,
+                        d.s3_key,
+                        dc.embedding <=> %s::vector AS distance
                     FROM document_chunks
-                    WHERE document_id = %s
-                    ORDER BY embedding <=> %s::vector
+                    dc
+                    JOIN documents d ON d.id = dc.document_id
+                    WHERE dc.document_id = %s
+                    ORDER BY dc.embedding <=> %s::vector
                     LIMIT %s
                     """,
-                    (self._document_id(file_id), embedding, k),
+                    (embedding, self._document_id(file_id), embedding, k),
                 )
             else:
                 cur.execute(
                     """
-                    SELECT chunk_text
-                    FROM document_chunks
-                    ORDER BY embedding <=> %s::vector
+                    SELECT
+                        dc.chunk_text,
+                        dc.page_number,
+                        dc.chunk_index,
+                        dc.metadata,
+                        d.file_name,
+                        d.s3_key,
+                        dc.embedding <=> %s::vector AS distance
+                    FROM document_chunks dc
+                    JOIN documents d ON d.id = dc.document_id
+                    ORDER BY dc.embedding <=> %s::vector
                     LIMIT %s
                     """,
-                    (embedding, k),
+                    (embedding, embedding, k),
                 )
 
-            return [row[0] for row in cur.fetchall()]
+            return [self._search_result(row) for row in cur.fetchall()]
 
     def _document_id(self, file_id):
         try:
@@ -141,6 +162,21 @@ class PGVectorStore:
             "chunk_index": fallback_index,
             "page_number": None,
             "metadata": {},
+        }
+
+    def _search_result(self, row):
+        chunk_text, page_number, chunk_index, metadata, file_name, s3_key, distance = row
+        similarity_score = max(0.0, 1.0 - float(distance))
+
+        return {
+            "chunk_text": chunk_text,
+            "page_number": page_number,
+            "chunk_index": chunk_index,
+            "similarity_score": similarity_score,
+            "distance": float(distance),
+            "file_name": file_name,
+            "file_key": s3_key,
+            "metadata": metadata or {},
         }
 
     def _format_embedding(self, embedding):

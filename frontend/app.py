@@ -22,6 +22,28 @@ def reset_document_state():
     st.session_state.messages = []
 
 
+def render_sources(sources):
+    if not sources:
+        return
+
+    st.markdown("**Sources**")
+    for index, source in enumerate(sources, start=1):
+        file_name = source.get("file_name") or "Unknown file"
+        page_number = source.get("page_number")
+        chunk_index = source.get("chunk_index")
+        score = source.get("similarity_score")
+
+        details = [file_name]
+        if page_number is not None:
+            details.append(f"page {page_number}")
+        if chunk_index is not None:
+            details.append(f"chunk {chunk_index}")
+        if score is not None:
+            details.append(f"score {score}")
+
+        st.caption(f"{index}. " + " | ".join(details))
+
+
 if "document_id" not in st.session_state:
     reset_document_state()
 
@@ -73,6 +95,8 @@ if not st.session_state.document_id:
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
+        if message["role"] == "assistant":
+            render_sources(message.get("sources", []))
         if message["role"] == "assistant" and message.get("context"):
             with st.expander("Retrieved context"):
                 for index, chunk in enumerate(message["context"], start=1):
@@ -95,7 +119,9 @@ if question:
 
             answer = result.get("answer", "")
             context = result.get("context_used", [])
+            sources = result.get("sources", [])
             st.markdown(answer)
+            render_sources(sources)
 
             if context:
                 with st.expander("Retrieved context"):
@@ -108,6 +134,7 @@ if question:
                     "role": "assistant",
                     "content": answer,
                     "context": context,
+                    "sources": sources,
                 }
             )
         except Exception as exc:
@@ -118,5 +145,6 @@ if question:
                     "role": "assistant",
                     "content": error_message,
                     "context": [],
+                    "sources": [],
                 }
             )
