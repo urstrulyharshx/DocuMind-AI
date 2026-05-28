@@ -33,3 +33,17 @@ CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding
     ON document_chunks
     USING ivfflat (embedding vector_cosine_ops)
     WITH (lists = 100);
+
+CREATE INDEX IF NOT EXISTS idx_document_chunks_fts
+    ON document_chunks
+    USING GIN (to_tsvector('english', chunk_text));
+
+CREATE TABLE IF NOT EXISTS embedding_cache (
+    cache_key TEXT NOT NULL,
+    model_id TEXT NOT NULL,
+    dimensions INTEGER NOT NULL,
+    embedding VECTOR(1024) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (cache_key, model_id, dimensions)
+);

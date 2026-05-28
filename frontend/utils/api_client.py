@@ -56,3 +56,21 @@ def query_document(question: str, document_id: str):
         },
     )
     return _json_or_error(response)
+
+
+def list_documents():
+    response = requests.get(f"{BASE_URL}/documents/")
+    return _json_or_error(response)
+
+
+def get_document_chunks(document_id: str, limit: int = 100):
+    response = requests.get(
+        f"{BASE_URL}/documents/{document_id}/chunks",
+        params={"limit": limit},
+    )
+    return _json_or_error(response)
+
+
+def delete_document(document_id: str):
+    response = requests.delete(f"{BASE_URL}/documents/{document_id}")
+    return _json_or_error(response)

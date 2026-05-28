@@ -1,9 +1,9 @@
 import uuid
 from pypdf import PdfReader
 
-from app.clients.embedding_client import EmbeddingClient
 from app.clients.s3_client import S3Client
 from app.db.vector_store import pgvector_store
+from app.services.embedding_service import EmbeddingService
 from app.utils.helpers import chunk_text
 
 
@@ -49,7 +49,7 @@ class IngestionService:
 
     def _get_embedding_client(self):
         if self._embedding_client is None:
-            self._embedding_client = EmbeddingClient()
+            self._embedding_client = EmbeddingService()
         return self._embedding_client
 
     def _extract_pages(self, file_path: str):

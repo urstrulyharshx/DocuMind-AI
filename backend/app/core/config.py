@@ -25,6 +25,7 @@ class Config:
     #S3 configuration
     S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "my-app-bucket")
     S3_REGION = os.getenv("S3_REGION", AWS_REGION)
+    MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "20"))
 
     # Database
     POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
